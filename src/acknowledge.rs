@@ -79,6 +79,7 @@
 use crate::two_way::{self, Communicator};
 
 use std::{
+    cell::RefCell,
     error::Error,
     fmt::{Debug, Display},
     iter,
@@ -243,7 +244,7 @@ pub struct Listener<T, U, F> {
     /// listener's side of the underlying two-way channel
     communicator: Communicator<U, T>,
     /// the function that creates acknowledgement types from references to data types
-    function: F,
+    function: RefCell<F>,
 }
 
 /// An error that occurs when a [`Listener`] fails to receive a message
@@ -356,14 +357,14 @@ impl<T, U> Error for TryRecvError<T, U> {}
 
 impl<T, U, F> Listener<T, U, F>
 where
-    F: Fn(&T) -> U,
+    F: FnMut(&T) -> U,
 {
     /// Attempts to acknowledge the given payload received from the speaker. If the acknowledgement
     /// fails to send, it is because the [`Speaker`] has been dropped.
     ///
     /// [`Speaker`]: Speaker
     fn acknowledge(&self, payload: &T) -> Result<(), two_way::SendError<U>> {
-        let acknowledgement = (self.function)(&payload);
+        let acknowledgement = (self.function.borrow_mut())(&payload);
         self.communicator.send(acknowledgement)
     }
 
@@ -494,7 +495,7 @@ pub fn custom_channel<T, U, F>(
     function: F,
 ) -> (Speaker<T, U>, Listener<T, U, F>)
 where
-    F: Fn(&T) -> U,
+    F: FnMut(&T) -> U,
 {
     let (speaker_communicator, listener_communicator) = two_way::channel();
     let speaker = Speaker {
@@ -502,7 +503,7 @@ where
     };
     let listener = Listener {
         communicator: listener_communicator,
-        function,
+        function: RefCell::new(function),
     };
     (speaker, listener)
 }
@@ -521,7 +522,7 @@ where
 ///
 /// [`Speaker`]: Speaker
 /// [`Listener`]: Listener
-pub fn channel<T>() -> (Speaker<T, ()>, Listener<T, (), impl Fn(&T)>) {
+pub fn channel<T>() -> (Speaker<T, ()>, Listener<T, (), impl FnMut(&T)>) {
     custom_channel(|_: &T| ())
 }
 
@@ -529,7 +530,9 @@ pub fn channel<T>() -> (Speaker<T, ()>, Listener<T, (), impl Fn(&T)>) {
 mod tests {
     use super as acknowledge;
     use std::{
-        assert_matches, iter, thread,
+        assert_matches,
+        cell::RefCell,
+        iter, thread,
         time::{Duration, Instant},
     };
 
@@ -774,5 +777,31 @@ mod tests {
         let acknowledgements = speaker.drain().collect::<Vec<_>>();
         assert_eq!(acknowledgements.as_array().unwrap(), &[2, 3]);
         listener_thread.join().unwrap();
+    }
+
+    /// Tests that the `Listener` correctly handles a mutable acknowledge function.
+    #[test]
+    fn mutable_acknowledge_function() {
+        let items_responded_to = RefCell::new(0usize);
+        let (speaker, listener) = acknowledge::custom_channel(move |_| {
+            *items_responded_to.borrow_mut() += 1;
+            *items_responded_to.borrow()
+        });
+        let speaker_thread = thread::spawn(move || {
+            speaker.send(3).unwrap();
+            speaker.send(2).unwrap();
+            speaker.send(1).unwrap();
+            let acknowledgements = speaker.drain().collect::<Vec<_>>();
+            assert_eq!(acknowledgements.as_array().unwrap(), &[1, 2, 3]);
+        });
+        let listener_thread = thread::spawn(move || {
+            let messages = listener.drain().collect::<Vec<_>>();
+            assert_eq!(
+                messages.as_array().unwrap(),
+                &[(3, Ok(())), (2, Ok(())), (1, Ok(()))]
+            );
+        });
+        listener_thread.join().unwrap();
+        speaker_thread.join().unwrap();
     }
 }
