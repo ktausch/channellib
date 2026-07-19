@@ -66,6 +66,12 @@
 //! assert!(num_unprocessed <= 100);
 //! ```
 //!
+//! Note that the preferred way to end the threads of [`Speaker`] and [`Listener`] instances
+//! is to call [`Speaker::drain()`] and [`Listener::drain()`] methods. This provides the
+//! guarantee that, in the absence of panics (and assuming the consumption of the iterators
+//! returned by the `drain()` method), all messages sent will be acknowledged and no infinite
+//! loops will ever occur due to the [`Speaker`] and [`Listener`] waiting for each other to drop.
+//!
 //! [`acknowledge::channel()`]: channel()
 //! [`acknowledge::custom_channel()`]: custom_channel()
 //! [`two_way::Communicator`]: Communicator
@@ -76,6 +82,8 @@
 //! [`Receiver`]: std::sync::mpsc::Receiver
 //! [`Sender::send()`]: std::sync::mpsc::Sender::send()
 //! [`Receiver::recv()`]: std::sync::mpsc::Receiver::recv()
+//! [`Speaker::drain()`]: Speaker::drain()
+//! [`Listener::drain()`]: Listener::drain()
 use crate::two_way::{self, Communicator};
 
 use std::{
