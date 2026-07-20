@@ -2,3 +2,9 @@
 name = "channellib"
 version = "0.1.0"
 edition = "2024"
+description = "tools for enriching communication between threads"
+readme = "README.md"
+repository = "https://github.com/ktausch/channellib"
+license = "MIT"
+keywords = ["channel", "threads", "communication", "sender", "receiver"]
+categories = ["concurrency"]

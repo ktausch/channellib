@@ -145,8 +145,11 @@ impl Display for ReadAcknowledgementError {
 impl Error for ReadAcknowledgementError {}
 
 impl<T, U> Speaker<T, U> {
-    /// Sends the given data to the listener, returning a [`ReadAcknowledgementError`]
-    /// if the [`Listener`] has been dropped.
+    /// Sends the given data to the listener
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ReadAcknowledgementError`] if the [`Listener`] has been dropped.
     ///
     /// [`ReadAcknowledgementError`]
     /// [`Listener`]: Listener
@@ -156,20 +159,20 @@ impl<T, U> Speaker<T, U> {
             .map_err(|mpsc::SendError(data)| SendError(data))
     }
 
-    /// Attempts to read an acknowledgement from the [`Listener`]
+    /// Attempts to read an acknowledgement from the [`Listener`], returning
+    /// the next pending acknowledgement if there is one or None on success.
     ///
     /// NOTE: **This method is non-blocking.** See [`blocking_read_acknowledgement()`]
     ///       if you'd like to block until an acknowledgement is received or
     ///       the [`Listener`] has been dropped.
     ///
-    /// Returns:
+    /// # Errors
     ///
-    /// - `Ok(Some(payload))` if [`Listener`] has sent an unread acknowledgement
-    /// - `Ok(None)` if [`Listener`] hasn't been dropped but there are no unread acknowledgements
-    /// - `Err(read_acknowledgement_error)` if [`Listener`] has been dropped
+    /// Returns a [`ReadAcknowledgementError`] if the [`Listener`] has been dropped
     ///
     /// [`Listener`]: Listener
     /// [`blocking_read_acknowledgement()`]: Speaker::blocking_read_acknowledgement()
+    /// [`ReadAcknowledgementError`]: ReadAcknowledgementError
     pub fn read_acknowledgement(
         &self,
     ) -> Result<Option<U>, ReadAcknowledgementError> {
@@ -183,11 +186,14 @@ impl<T, U> Speaker<T, U> {
     }
 
     /// Reads an acknowledgement from the [`Listener`], returning the next
-    /// acknowledgement if the [`Listener`] sends at least one more or a
-    /// [`ReadAcknowledgementError`] if the [`Listener`] has been dropped.
+    /// acknowledgement if the [`Listener`] sends at least one more.
     ///
     /// NOTE: This method is blocking. See [`read_acknowledgement()`] if you'd like to
     ///       not wait for something to change on the listener side before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ReadAcknowledgementError`] if the [`Listener`] has been dropped.
     ///
     /// [`Listener`]: Listener
     /// [`read_acknowledgement()`]: Speaker::read_acknowledgement()
@@ -303,9 +309,10 @@ pub enum TryRecvError<T, U> {
         /// the acknowledgement that couldn't be sent successfully
         failed_acknowledgement: U,
     },
-    /// the [`Speaker`] was dropped before try_recv tried to get a payload
+    /// the [`Speaker`] was dropped before [`Listener::try_recv()`] tried to get a payload
     ///
     /// [`Speaker`]: Speaker
+    /// [`Listener::try_recv()`]: Listener::try_recv()
     SpeakerDropped,
     /// the [`Speaker`] hasn't been dropped but hasn't sent another payload yet
     ///
@@ -354,16 +361,19 @@ where
     ///
     /// [`Speaker`]: Speaker
     fn acknowledge(&self, payload: &T) -> Result<(), two_way::SendError<U>> {
-        let acknowledgement = (self.function.borrow_mut())(&payload);
+        let acknowledgement = (self.function.borrow_mut())(payload);
         self.communicator.send(acknowledgement)
     }
 
-    /// Reads data sent by the speaker, returning the payload on success or a [`RecvError`] if the
-    /// [`Speaker`] has been dropped (the variant of [`RecvError`] depends on whether there are
-    /// messages in the queue).
+    /// Reads data sent by the speaker, returning the payload on success.
     ///
     /// NOTE: This method blocks until the speaker sends data or the speaker is dropped.
     ///       If you wish to read without blocking the thread, use [`Listener::try_recv()`]
+    ///
+    /// # Errors
+    ///
+    /// Returns  a [`RecvError`] if the [`Speaker`] has been dropped (the variant of
+    /// [`RecvError`] depends on whether there are messages in the queue).
     ///
     /// [`Speaker`]: Speaker
     /// [`RecvError`]: RecvError
@@ -381,10 +391,14 @@ where
         }
     }
 
-    /// Reads data sent by the speaker in a non-blocking fashion, returning the payload on success
-    /// or a [`TryRecvError`] if the message queue is empty or the [`Speaker`] has been dropped.
+    /// Reads data sent by the speaker in a non-blocking fashion, returning the payload on success.
     ///
     /// NOTE: If you wish to block until a payload is received, use [`Listener::recv()`]
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`TryRecvError`] if the message queue is
+    /// empty or the [`Speaker`] has been dropped.
     ///
     /// [`TryRecvError`]: TryRecvError
     /// [`Speaker`]: Speaker
@@ -498,6 +512,8 @@ where
     (speaker, listener)
 }
 
+type Channel<T, U, F> = (Speaker<T, U>, Listener<T, U, F>);
+
 /// Creates a basic acknowledge channel, consisting of a [`Speaker`] and a [`Listener`], where the
 /// [`Listener`] sends acknowledgements in the form of `()`.
 ///
@@ -512,7 +528,7 @@ where
 ///
 /// [`Speaker`]: Speaker
 /// [`Listener`]: Listener
-pub fn channel<T>() -> (Speaker<T, ()>, Listener<T, (), impl FnMut(&T)>) {
+pub fn channel<T>() -> Channel<T, (), impl FnMut(&T)> {
     custom_channel(|_: &T| ())
 }
 

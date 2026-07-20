@@ -84,6 +84,7 @@ use std::{
 /// that are both connected to another `Communicator` instance.
 ///
 /// [`two_way::channel`]: channel
+#[must_use]
 pub struct Communicator<T, U> {
     /// the sender the communicator uses to send data over the channel
     sender: Sender<T>,
@@ -92,8 +93,12 @@ pub struct Communicator<T, U> {
 }
 
 impl<T, U> Communicator<T, U> {
-    /// Sends the given data over the channel, returning a [`SendError`] if the
-    /// [`Communicator`] on the other side of the channel has been dropped.
+    /// Sends the given data over the channel.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`SendError`] if the [`Communicator`] on
+    /// the other side of the channel has been dropped.
     ///
     /// [`SendError`]: SendError
     /// [`Communicator`]: Communicator
@@ -101,9 +106,12 @@ impl<T, U> Communicator<T, U> {
         self.sender.send(data)
     }
 
-    /// Blocks until another payload is received over the channel. If the other
-    /// [`Communicator`] is dropped or consumed (see [`drain()`] for details),
-    /// a [`RecvError`] is returned.
+    /// Blocks until another payload is received over the channel.
+    ///
+    /// # Errors
+    ///
+    /// If the other [`Communicator`] is dropped or consumed (see
+    /// [`drain()`] for details), a [`RecvError`] is returned.
     ///
     /// [`drain()`]: Communicator::drain()
     /// [`RecvError`]: RecvError
@@ -112,10 +120,13 @@ impl<T, U> Communicator<T, U> {
         self.receiver.recv()
     }
 
-    /// Attempts to receive a payload from the channel. If the other [`Communicator`]
-    /// has not sent anything new but is still not dropped or consumed (see
-    /// [`drain()`] for details), a [`TryRecvError::Empty`] is returned. If the other
-    /// `Communicator` has been dropped, a [`TryRecvError::Disconnected`] is returned.
+    /// Attempts to receive a payload from the channel.
+    ///
+    /// # Errors
+    ///
+    /// If the other [`Communicator`] has not sent anything new but is still not dropped or
+    /// consumed (see [`drain()`] for details), a [`TryRecvError::Empty`] is returned. If the
+    /// other `Communicator` has been dropped, a [`TryRecvError::Disconnected`] is returned.
     ///
     /// [`Communicator`]: Communicator
     /// [`drain()`]: Communicator::drain()
