@@ -1,4 +1,4 @@
-//! symmatric two-way communication between threads
+//! symmetric two-way communication between threads
 //!
 //! This module is centered around the [`two_way::channel()`] function, which
 //! creates a channel similar to that created by [`mpsc::channel()`] with two main differences:
