@@ -60,7 +60,7 @@ for _ in 0..3 {
 for _ in 0..3 {
     assert_eq!(listener.recv().unwrap(), 10);
 }
-let acknowledgements = speaker.read_acknowledgements().unwrap();
+let acknowledgements = speaker.read_acknowledgements().collect::<Vec<_>>();
 assert_eq!(acknowledgements.as_array().unwrap(), &[11, 12, 13]);
 ```
 

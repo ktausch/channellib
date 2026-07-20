@@ -200,37 +200,19 @@ impl<T, U> Speaker<T, U> {
             .map_err(|_| ReadAcknowledgementError::ListenerDropped)
     }
 
-    /// Reads all pending acknowledgements from the [`Listener`]. The variant of [`Result`] that
-    /// is returned depends on status of [`Listener`] when the last acknowledgement is read. If
-    /// the [`Listener`] has been dropped, [`Err`] is returned; otherwise [`Ok`] is returned.
+    /// Creates an iterator that can read pending acknowledgements from the [`Listener`].
     ///
-    /// NOTE: This method is non-blocking because otherwise, it would only
-    ///       return after the [`Listener`] is dropped, which is not desired in
-    ///       most use-cases where the [`Speaker`] is borrowed. If you wish to
-    ///       cease speaking and only listen for acknowledgements until the listener
-    ///       is dropped, consume self with [`drain()`].
+    /// NOTE: The returned iterator's [`next()`] method is non-blocking because otherwise, it would
+    ///       only return after the [`Listener`] is dropped, which is not desired in most use-cases
+    ///       where the [`Speaker`] is borrowed. If you wish to cease speaking and only listen for
+    ///       acknowledgements until the listener is dropped, consume self with [`drain()`].
     ///
-    /// [`Result`]: std::result::Result
-    /// [`Ok`]: std::result::Result::Ok
-    /// [`Err`]: std::result::Result::Err
     /// [`Listener`]: Listener
     /// [`Speaker`]: Speaker
     /// [`drain()`]: Speaker::drain
-    pub fn read_acknowledgements(&self) -> Result<Vec<U>, Vec<U>> {
-        let mut acknowledgements = Vec::new();
-        loop {
-            match self.read_acknowledgement() {
-                Ok(Some(acknowledgement)) => {
-                    acknowledgements.push(acknowledgement);
-                }
-                Ok(None) => {
-                    break Ok(acknowledgements);
-                }
-                Err(ReadAcknowledgementError::ListenerDropped) => {
-                    break Err(acknowledgements);
-                }
-            }
-        }
+    /// [`next()`]: std::iter::Iterator::next()
+    pub fn read_acknowledgements(&self) -> impl Iterator<Item = U> {
+        iter::from_fn(|| self.read_acknowledgement().ok().flatten())
     }
 
     /// Consumes the speaker and returns an iterator over acknowledgements sent by the listener
@@ -562,11 +544,11 @@ mod tests {
         assert_matches!(listener.recv(), Ok(11));
         assert_eq!(speaker.read_acknowledgement(), Ok(Some(11)));
         assert_matches!(listener.recv(), Ok(12));
-        let acknowledgements: [i32; 2] =
-            speaker.read_acknowledgements().unwrap().try_into().unwrap();
-        assert_eq!(acknowledgements, [12, 13]);
+        let acknowledgements =
+            speaker.read_acknowledgements().collect::<Vec<_>>();
+        assert_eq!(acknowledgements.as_array().unwrap(), &[12, 13]);
         assert_eq!(speaker.read_acknowledgement(), Ok(None));
-        assert!(speaker.read_acknowledgements().unwrap().is_empty());
+        assert_eq!(speaker.read_acknowledgements().count(), 0);
     }
 
     /// Tests that if the speaker is dropped when there are no unread payloads,
@@ -640,7 +622,7 @@ mod tests {
     }
 
     /// Tests that when the listener is dropped before `Speaker::read_acknowledgements()`
-    /// is called, it will return an `Err(vec_of_acknowledgements)`
+    /// is called, all of the acknowledgements are still returned.
     #[test]
     fn listener_dropped_after_short_burst() {
         let (speaker, listener) = acknowledge::channel();
@@ -648,7 +630,8 @@ mod tests {
         assert_eq!(speaker.send(2), Ok(()));
         assert_eq!(listener.recv(), Ok(1));
         drop(listener);
-        let acknowledgements = speaker.read_acknowledgements().unwrap_err();
+        let acknowledgements =
+            speaker.read_acknowledgements().collect::<Vec<_>>();
         let acknowledgements = acknowledgements.as_array().unwrap();
         assert_eq!(acknowledgements, &[()]);
     }
@@ -720,7 +703,7 @@ mod tests {
             thread::sleep(Duration::from_micros(200));
             speaker.send(3).unwrap();
             thread::sleep(Duration::from_micros(300));
-            assert_eq!(speaker.read_acknowledgements().unwrap().len(), 3);
+            assert_eq!(speaker.read_acknowledgements().count(), 3);
         });
         let listener_thread = thread::spawn(move || {
             let mut payloads = listener.drain();
