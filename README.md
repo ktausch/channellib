@@ -1,12 +1,33 @@
 A crate with tools to enrich communication between threads powered by `mpsc::channel`. To view the up-to-date documentation, clone this repo and run
 
 ```bash
-cargo doc
+cargo doc --open
 ```
 
 # Channels
 
-The main centerpieces of `channellib` are the `two_way::channel()` and the `acknowledge::channel()`.
+The main centerpieces of `channellib` are `supplement::channel()`, `two_way::channel()`, and `acknowledge::channel()`.
+
+## `supplement::channel()`
+
+The `supplement::channel()` is a channel that allows for input enrichment and output processing to be built into the channel itself. One of the most convenient use-cases is to use it with a priority queue. The special method `recv_buffer_and_process()` used in this example pulls all messages that have been sent from the internal buffer and into the priority queue and then pops and processes the single highest priority one.
+
+```rust
+use channellib::supplement::{self, PriorityQueue};
+let (producer, mut consumer) =
+    supplement::channel(PriorityQueue::new(|x: &isize| -x));
+producer.send(3).unwrap();
+producer.send(2).unwrap();
+producer.send(1).unwrap();
+drop(producer);
+loop {
+    if let (None, false) = consumer.recv_buffer_and_process(|x| println!("{x}"))
+    {
+        break;
+    }
+}
+// prints three lines, "1", "2", and "3"
+```
 
 ## `two_way::channel()`
 
