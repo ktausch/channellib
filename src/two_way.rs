@@ -158,6 +158,7 @@ impl<T, U> Communicator<T, U> {
 }
 
 /// Creates a new two-way channel with a [`Communicator`] on each side.
+///
 /// The two different directions can accomodate two different types
 /// of data (hence the two generic parameters `T` and `U`); but,
 /// they are otherwise perfectly symmetric.
