@@ -123,6 +123,7 @@ use std::{
         BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, LinkedList, VecDeque,
         binary_heap,
     },
+    fmt::Debug,
     hash::{BuildHasher, Hash, RandomState},
     marker::PhantomData,
     ops::{Deref, DerefMut},
@@ -186,8 +187,17 @@ pub trait SendSupplementer {
 /// assert_eq!(send_supplementer.unenrich(send_supplementer.enrich(2)), 2);
 /// ```
 ///
+/// Even though it uses [`PhantomData<T>`], this trait implements [`Clone`],
+/// [`Copy`], [`PartialEq`], [`Eq`], [`Default`], and [`Debug`]
+///
 /// [`SendSupplementer`]: SendSupplementer
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+/// [`PhantomData<T>`]: std::marker::PhantomData
+/// [`Clone`]: std::clone::Clone
+/// [`Copy`]: std::marker::Copy
+/// [`PartialEq`]: std::cmp::PartialEq
+/// [`Eq`]: std::cmp::Eq
+/// [`Default`]: std::default::Default
+/// [`Debug`]: std::fmt::Debug
 pub struct NullSendSupplementer<T>(PhantomData<T>);
 
 impl<T> NullSendSupplementer<T> {
@@ -197,6 +207,34 @@ impl<T> NullSendSupplementer<T> {
     #[must_use]
     pub const fn new() -> Self {
         Self(PhantomData)
+    }
+}
+
+impl<T> Clone for NullSendSupplementer<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for NullSendSupplementer<T> {}
+
+impl<T> PartialEq for NullSendSupplementer<T> {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl<T> Eq for NullSendSupplementer<T> {}
+
+impl<T> Default for NullSendSupplementer<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> Debug for NullSendSupplementer<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NullSendSupplementer<{}>", std::any::type_name::<T>())
     }
 }
 
@@ -222,10 +260,39 @@ impl<T> SendSupplementer for NullSendSupplementer<T> {
 /// assert_eq!(send_supplementer.unenrich(send_supplementer.enrich(2)), 2);
 /// ```
 ///
+/// Even though it uses [`PhantomData`] for the `T` and `U` generic type parameters, this
+/// trait implements [`Clone`] and [`Copy`] if `F` does, and always implements [`Debug`]
+///
 /// [`SendSupplementer`]: SendSupplementer
 /// [`supplement::channel()`]: channel()
-#[derive(Clone, Copy, Debug)]
+/// [`PhantomData`]: PhantomData
+/// [`Clone`]: std::clone::Clone
+/// [`Copy`]: std::marker::Copy
+/// [`Debug`]: std::fmt::Debug
 pub struct PrependSendSupplementer<F, T, U>(F, PhantomData<T>, PhantomData<U>);
+
+impl<F, T, U> Clone for PrependSendSupplementer<F, T, U>
+where
+    F: Clone,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), PhantomData, PhantomData)
+    }
+}
+
+impl<F, T, U> Copy for PrependSendSupplementer<F, T, U> where F: Copy {}
+
+impl<F, T, U> Debug for PrependSendSupplementer<F, T, U> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PrependSendSupplementer<{}, {}, {}>",
+            std::any::type_name::<F>(),
+            std::any::type_name::<T>(),
+            std::any::type_name::<U>(),
+        )
+    }
+}
 
 impl<F, T, U> PrependSendSupplementer<F, T, U>
 where
@@ -372,8 +439,39 @@ impl<T> EventAccepter for LinkedList<T> {
 /// An implementation of the [`EventAccepter`] trait that
 /// does nothing but return the data unchanged.
 ///
+/// Even though it uses [`PhantomData`], this trait implements [`Clone`], [`Copy`]
+/// [`PartialEq`], [`Eq`], and [`Debug`]
+///
 /// [`EventAccepter`]: EventAccepter
+/// [`PhantomData`]: std::marker::PhantomData
+/// [`Clone`]: std::clone::Clone
+/// [`Copy`]: std::marker::Copy
+/// [`PartialEq`]: std::cmp::PartialEq
+/// [`Eq`]: std::cmp::Eq
+/// [`Debug`]: std::fmt::Debug
 pub struct NullEventAccepter<T>(PhantomData<T>);
+
+impl<T> Clone for NullEventAccepter<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for NullEventAccepter<T> {}
+
+impl<T> PartialEq for NullEventAccepter<T> {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl<T> Eq for NullEventAccepter<T> {}
+
+impl<T> Debug for NullEventAccepter<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NullEventAccepter<{}>", std::any::type_name::<T>())
+    }
+}
 
 impl<T> NullEventAccepter<T> {
     /// Creates a new [`NullEventAccepter`] for the given type.
