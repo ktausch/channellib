@@ -1,6 +1,6 @@
 [package]
 name = "channellib"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 description = "tools for enriching communication between threads"
 readme = "README.md"
