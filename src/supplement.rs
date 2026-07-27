@@ -523,7 +523,6 @@ impl<T> EventAccepter for NullEventAccepter<T> {
 /// [`Receiver`]: std::sync::mpsc::Receiver
 /// [`mpsc::channel()`]: std::sync::mpsc::channel()
 #[must_use]
-#[derive(Clone)]
 pub struct Producer<S: SendSupplementer> {
     /// the actual [`Sender`] used to send messages
     ///
@@ -534,6 +533,15 @@ pub struct Producer<S: SendSupplementer> {
     ///
     /// [`mpsc::channel()`]: std::sync::mpsc::channel()
     send_supplementer: S,
+}
+
+impl<S: SendSupplementer + Clone> Clone for Producer<S> {
+    fn clone(&self) -> Self {
+        Self {
+            sender: self.sender.clone(),
+            send_supplementer: self.send_supplementer.clone(),
+        }
+    }
 }
 
 impl<S: SendSupplementer> Producer<S> {
@@ -1503,7 +1511,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
     use super as supplement;
     use std::{
         collections::{BTreeMap, BTreeSet, HashSet, LinkedList, VecDeque},
@@ -1837,5 +1844,38 @@ mod tests {
         assert_eq!(consumer.pop().unwrap().data, "12");
         assert_eq!(consumer.pop().unwrap().data, "6");
         assert!(consumer.pop().is_none());
+    }
+
+    /// Ensures that [`Producer`] implements clone when using a [`NullSendSupplementer`].
+    ///
+    /// [`Producer`]: supplement::Producer
+    /// [`NullSendSupplementer`]: supplement::NullSendSupplementer
+    #[test]
+    fn producer_with_null_send_supplementer_is_clone() {
+        use supplement::SendSupplementer;
+        struct MyNonCloneType;
+        let (producer, _) = supplement::channel(
+            supplement::NullSendSupplementer::<MyNonCloneType>::new()
+                .into_supplementer(),
+        );
+        drop(producer.clone());
+    }
+
+    /// Ensures that [`Producer`] implements clone when using a [`PrependSendSupplementer`].
+    ///
+    /// [`Producer`]: supplement::Producer
+    /// [`PrependSendSupplementer`]: supplement::PrependSendSupplementer
+    #[test]
+    fn producer_with_prepend_send_supplementer_is_clone() {
+        use supplement::SendSupplementer;
+        struct MyNonCloneType;
+        struct MyOtherNoneCloneType;
+        let (producer, _) = supplement::channel(
+            supplement::PrependSendSupplementer::new(|_: &MyNonCloneType| {
+                MyOtherNoneCloneType
+            })
+            .into_supplementer(),
+        );
+        drop(producer.clone());
     }
 }
